@@ -18,20 +18,16 @@ Mat drawing2;
 
 void createWindows()
 {
-	namedWindow("Image", WINDOW_AUTOSIZE);
-	namedWindow("Image2", WINDOW_AUTOSIZE);
+	namedWindow("Image", WINDOW_NORMAL);
+	namedWindow("Image2", WINDOW_NORMAL);
 	//namedWindow("Image3", WINDOW_AUTOSIZE);
 	//cout << "created window";
+	
 }
 
 void readImages()
 {
-	//src = imread("Circle.png", 1); // a circle
-	src = imread("PaperTargets.png", 1);                //Highest Resolution image, no problem detecting circles with current settings
-	//src = imread("AirRifleTarget.png", IMREAD_COLOR);			   //Medium Res image, need to adjust thickness of contour lines if I want to read that small
-	//src = imread("AirRifleTarget2.png", IMREAD_COLOR);		   //Lowest Res image, does not detect contours because the area of the circles is much too small for the current allowance.
-	//dst = imread("AirRifleTarget.png", IMREAD_COLOR);
-	//dst = imread("PaperTargets.png", IMREAD_GRAYSCALE);
+	src = imread("PaperTargets5.png", 1);                //Highest Resolution image, no problem detecting circles with current settings
 	if (!src.data)
 	{
 		cout << "Could not find or read image";
@@ -40,65 +36,86 @@ void readImages()
 
 Mat detectContours()
 {
-	int p = 0;
-	blur(src, dst, Size(3, 3));										//Performs a box filter blur operation on the Mat "src" and outputs it to the Mat "dst" 
-	//GaussianBlur(src, dst, Size(9, 9), 8, 8);
 	vector<vector<Point> > contours;  //creates a vector of vectors that stores points, and this stores all the contours, which are just series of streight lines connecting to eachother.
 	vector<Vec4i> hierarchy;
+	blur(src, dst, Size(3, 3));		//Performs a box filter blur operation on the Mat "src" and outputs it to the Mat "dst" 
 	Canny(dst, canny_output, 10, 30, 3);
 	findContours(canny_output, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE, Point(0, 0));
+	int p = 0;
+	blur(src, dst, Size(3, 3));		//Performs a box filter blur operation on the Mat "src" and outputs it to the Mat "dst" 
+
 	Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
-	double circs[10]{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+	double circs[9]{-1, -1, -1, -1, -1, -1, -1, -1, -1};
 	vector<Moments> mu(contours.size());
+	vector<Point2f> mc(contours.size());
+	Point centers[9];
+	int avgcenterX = 0, avgcenterY = 0;
+	Point avgcenterpoint;
+
+
+	blur(src, dst, Size(3, 3));		//Performs a box filter blur operation on the Mat "src" and outputs it to the Mat "dst" 
+	
+	
+	
 	for (int i = 0; i < contours.size(); i++)
 	{
+		//cout << contours.size()<<":"<<contours[i];
+
 		mu[i] = moments(contours[i], false);
+		//cout << "Here";
 	}
-	vector<Point2f> mc(contours.size());
+	
 	for (int i = 0; i < contours.size(); i++)
 	{
 		mc[i] = Point2f(mu[i].m10 / mu[i].m00, mu[i].m01 / mu[i].m00);
 	}
-	Point centers[10];
-	int avgcenterX=0,avgcenterY=0;
-	Point avgcenterpoint;
+
+	
 	for (int i = 0; i < contours.size(); i++)
 	{
 		double area = contourArea(contours[i], false);
 		double r = sqrt(area / PI);
+
 		if (area > 10000)
 		{
 			p++;
 			Scalar color = Scalar(255, 255, 255);
 			//drawContours(drawing, contours, i, color, 1, 8, hierarchy, 0, Point());
-			for (int l = 0; l < 10; l++)
+			
+			for (int l = 0; l < 9; l++)
 			{
 				double err = 100*(abs(r - circs[l]) / abs((r + circs[l]) / 2));
+				
 				if (err > 9)
 				{
+					
 					if (circs[l] == -1)
 					{
 						circs[l] = r;
 						centers[l] = mc[i];
 						l = 11;
 					}
-				} else if (err <= 9)
+				} 
+				else if (err <= 9)
 				{
 					circs[l] = ((circs[l] + r) / 2);
 					centers[l] = mc[i];
 					l = 11;
 				}
 			}
-			for (int i = 0; i < 10; i++)
+
+			for (int i = 0; i < 9; i++)
 			{
+				
 				avgcenterX += centers[i].x;
 				avgcenterY += centers[i].y;
-				if (i == 9)
+
+				if (i == 8)
 				{
 					
-					avgcenterX = avgcenterX / 11;
-					avgcenterY = avgcenterY / 11;
-					cout << avgcenterX << ":" << avgcenterY << endl;
+					avgcenterX = avgcenterX / 10;
+					avgcenterY = avgcenterY / 10;
+					//cout << avgcenterX << ":" << avgcenterY << endl;
 					avgcenterpoint = Point(avgcenterX, avgcenterY);
 					
 				}
@@ -106,13 +123,69 @@ Mat detectContours()
 		}
 
 		}
+
 	cout << "number of contours: " << p<<endl;
-	for (int i = 0; i < 10; i++)
+
+	for (int i = 0; i < 9; i++)
 	{
 		cout <<"Circle #"<<i<<": "<< circs[i]<<endl;
 		cout << "Center of Circle #" << i << ": " << centers[i] << endl;
 		circle(drawing, avgcenterpoint, circs[i], Scalar(255, 255, 255));
+		circle(dst, avgcenterpoint, circs[i], Scalar(0, 25, 255));
 	}
+
+	double B[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	int c = 0;
+	int diff = 0;
+	int count = 1, acount = 0;
+	bool anomaly = false;
+	for (int i = 0; i < 8; i++)
+	{
+		//cout << circs[i] << ":"<<B[i]<<endl;
+		B[i] = circs[i + 1] - circs[i];
+
+	}
+	for (int i = 0; i < 8; i++)
+	{
+
+		double top = abs(B[i] - B[i + 1]);
+		double bottom = (abs(B[i] + B[i + 1]) / 2);
+		double err = 100 * top / bottom;
+		cout <<"Count: "<< count <<" err: "<< err << " B: " << B[i] << " B+1: " << B[i + 1] << endl;
+		if (err > 50)
+		{
+			if (i != 7)
+			{
+				anomaly = true;
+				acount = count;
+			}
+			count++;
+		}
+		else
+		{
+			count++;
+		}
+	}
+	if (acount == 0)
+	{
+		cout << endl << abs(circs[8]) << ":" << abs(1.1*B[7])<<endl;
+		if (abs(circs[8]) < abs(1.1*B[7]))
+		{
+			acount = 1;
+			cout << "Anomaly detected at: " << acount;
+
+		}
+		else
+		{
+			acount = 10;
+			cout << "Anomaly detected at: " << acount;
+		}
+	}
+	else
+	{
+		cout << "Anomaly detected between: " << acount << " and " << acount + 1 << endl;
+	}
+
 	return drawing;
 }
 
