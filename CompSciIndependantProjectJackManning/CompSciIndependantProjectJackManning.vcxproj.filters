@@ -23,5 +23,8 @@
     <ClInclude Include="DetectCircles.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ScanSheet.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

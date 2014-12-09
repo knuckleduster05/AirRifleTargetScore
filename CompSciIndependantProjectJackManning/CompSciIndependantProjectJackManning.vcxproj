@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DetectCircles.h" />
+    <ClInclude Include="ScanSheet.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{47AFA5D4-F790-43E2-9C66-556E1092F2C0}</ProjectGuid>

@@ -10,6 +10,9 @@
 using namespace std;
 using namespace cv;
 
+bool circlesDebug = false;
+int l = 0;
+RNG rng(0xFFFFFFFF);
 Mat canny_output; //global stored canny output
 Mat srce; //globaly stored version of src
 Mat dest; //globaly stored version of dst
@@ -18,10 +21,10 @@ Mat drawing2;
 vector<vector<Point>> contours; //storage of all contours in image
 vector<vector<Point>> contours2; //storage of all  circles in image
 vector<Moments> mug(contours.size()); //globaly stored moments
-vector<Point2f> mcg(contours.size()); //globaly stored masscenters
-vector<Point2f> mc2(contours.size()); //masscenters of circles
+vector<Point2d> mcg(contours.size()); //globaly stored masscenters
+vector<Point2d> mc2(contours.size()); //masscenters of circles
 vector<Vec4i> hierarchy; //hierarchy of contours in image
-vector<int> circleRadi; //stores the radi of the averaged circles
+vector<double> circleRadi; //stores the radi of the averaged circles
 vector<Point> circleCenters; //stores the centers of the averaged circles
 
 Mat detectContours(Mat src, Mat dst); //function that calls all  other functions in this  header
@@ -31,14 +34,17 @@ void collectCircles(); //function that finds all circles in the image
 void averageCircles(); //averages out the circles into ones of the same size
 void drawCircles();//this draws the circles that I averaged on the original source picture, to determine accuracy
 
-Mat detectContours(Mat src, Mat dst)  //function that calls all  other functions in this  header
+Mat detectContours(Mat src, Mat dst,bool Debug2)  //function that calls all  other functions in this  header
 {
+	circlesDebug = Debug2;
 	srce = src;  //saves src globaly
 	dest = dst; //saves dst globaly
 	manipulateImage(srce, dest); //performs manipulateImage on srce and dest
 	drawing = Mat::zeros(canny_output.size(), CV_8UC3); //holds drawings for the debuging section
 	drawing2 = Mat::zeros(canny_output.size(), CV_8UC3); //holds drawings for the debuging section
+	//cout << "Going to contours/moments" << endl;
 	findContoursandMoments(); //runs findContoursandMoments
+	//cout << "Going to collectCircles" << endl;
 	collectCircles(); //runs collectCircles()
 	averageCircles();
 	return drawing; //returns drawing to the main source file, drawing is edited in collectCircles currently
@@ -46,8 +52,10 @@ Mat detectContours(Mat src, Mat dst)  //function that calls all  other functions
 
 void manipulateImage(Mat src, Mat dst) //function that performs all image manipulation
 {
+	//resize(src, src, Size(1200, 1200));
 	blur(src, dst, Size(3, 3)); //blurs image for easier edge detection
 	Canny(dst, canny_output, 10, 30, 3); //performs canny edge detect on image
+	//imshow("test2", src);
 }
 
 void findContoursandMoments() //function that finds and stores all information useful to the detection
@@ -66,40 +74,58 @@ void findContoursandMoments() //function that finds and stores all information u
 
 	for (int i = 0; i < contours.size(); i++)
 	{
-		mcl[i] = Point2f(mul[i].m10 / mul[i].m00, mul[i].m01 / mul[i].m00); //calculates centers of contours in the image
+		mcl[i] = Point2d(mul[i].m10 / mul[i].m00, mul[i].m01 / mul[i].m00); //calculates centers of contours in the image
 	}
 	
 	for (int i = 0; i < mcl.size(); i++)
 	{
 		mcg[i] = mcl[i]; //saves masscenters globaly
 	}
+	//cout << "size: " << contours.size() << endl;
 }
 
 Point findCenter(int num) //finds the center of the contours and outputs it as a point
 {
-	return Point(mcg[num].x, mcg[num].y);
+	return Point((int) round(mcg[num].x),(int) round(mcg[num].y));
 }
 
 bool checkCircular(int cont) //function that finds all circles in the image
 {
 	bool tests; //boolean used to detect circularity
 	Point center = findCenter(cont); //saving local center for each contour for duration of test
-	int radius = sqrt(contourArea(contours[cont], false) / PI); //finding the radius of the contour, assuming it is a circle
+	double radius = sqrt(contourArea(contours[cont], false) / PI); //finding the radius of the contour, assuming it is a circle
 	drawContours(drawing, contours, cont, Scalar(255, 255, 255), 1, 8, hierarchy, 0, Point());
 	for (int i = 0; i < 360; i++) //repeats test for entire circle
 	{	
-		Point testInside = Point(.98*radius*cos(i*PI / 180) + center.x, .98*radius*sin(i*PI / 180) + center.y); //the test point used in pointpolygonTest
-		Point testOutside = Point(1.1*radius*cos(i*PI / 180) + center.x, 1.1*radius*sin(i*PI / 180) + center.y); //the test point used in pointpolygonTest
-		line(drawing, findCenter(cont), testInside, Scalar(255, 255, 255), 1, 8);
-		imshow("image4", drawing);
-		if (i % 5 == 0 && !i == 0){ waitKey(1); }
-		if ((-1 == pointPolygonTest(contours[cont], testInside, false)) || (contourArea(contours[cont], false)<100)) //performs pointPolygonTest on the point in question, if true, boolean is saved as true, if false, jumps out of loop with boolean being false
+		Point testInside = Point((int) round(.98*radius*cos(i*PI / 180) + center.x), (int) round( .98*radius*sin(i*PI / 180) + center.y)); //the test point used in pointpolygonTest
+		Point testOutside = Point((int) round(1.01*radius*cos((i + .5)*PI / 180) + center.x), (int) round(1.01*radius*sin((i + .5)*PI / 180) + center.y)); //the test point used in pointpolygonTest
+		
+		if (circlesDebug)
+		{
+			Size size4(800, 800);
+			Mat tempDraw = drawing;
+			Mat tempDraw2 = drawing2;
+			resize(tempDraw, tempDraw, size4);
+			resize(tempDraw2, tempDraw2, size4);
+			imshow("Detected Circles", tempDraw); //writes the drawings to drawing2, and displays them in window "image5"
+			imshow("image4", tempDraw2);
+			if (i % 5 == 0 && !i == 0){ waitKey(1); }
+		}
+
+
+
+
+		if ((contourArea(contours[cont], false)<10000) || (-1 == pointPolygonTest(contours[cont], testInside, false)) || 1 == pointPolygonTest(contours[cont], testOutside, false)) //performs pointPolygonTest on the point in question, if true, boolean is saved as true, if false, jumps out of loop with boolean being false
 		{
 			tests = false;
 			break;
 		}
 		else
 		{
+			line(drawing2, findCenter(cont), testInside, Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255)), 1, 8); //these are for debuging purposes, if you want to see the contours be tested, uncoment these three
+			line(drawing2, findCenter(cont), testOutside, Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255)), 1, 8);
+			//line(drawing2, findCenter(cont), testOutside, Scalar(0,0,255), 1, 8);
+			//line(drawing2, findCenter(cont), testInside, Scalar(255,0,0), 1, 8);
 			tests = true;
 		}
 	}
@@ -122,8 +148,8 @@ void collectCircles() //function that finds all circles in the image
 			contours2[n] = contours[i]; //saves the contour in a seperate set of contours for just circular objects
 			mc2[n] = mcg[i]; //saves the masscenter to a seperate set of mass centers for just circular objects
 			n++; 
-
-			imshow("image5", drawing2); //writes the drawings to drawing2, and displays them in window "image5"
+			//cout << n << endl;
+			//imshow("Detected Circles", drawing2); //writes the drawings to drawing2, and displays them in window "image5"
 		}
 	}
 }
@@ -139,7 +165,7 @@ void averageCircles() //averages out the circles into ones of the same size
 	{
 		for (int l = 0; l < circleRadi.size(); l++) //checks against all the circles in the circleRadi vector
 		{
-			double r = sqrt(contourArea(contours2[i], false) / PI); //finds the radius of the current contour
+			int r = (int) round(sqrt(contourArea(contours2[i], false) / PI)); //finds the radius of the current contour
 			double err = 100 * (abs(r - circleRadi[l]) / abs((r + circleRadi[l]) / 2)); //finds the % diff between the current contours radius and the one in the vector we are checking agianst
 
 			if (err > 9) //asks if the error is greater than 9%
@@ -152,13 +178,13 @@ void averageCircles() //averages out the circles into ones of the same size
 					circleCenters.push_back(Point(-1,-1)); //expand the vector for circleCenters by 1
 					circleRadi[l + 1] = -1; //assign placeholder value for circleRadi
 					circleCenters[l + 1] = Point(-1, -1); //assign placeholder value for circleCenters
-					l = circleRadi.size(); //jump out of the for loop for the average circles
+					l = (int) circleRadi.size(); //jump out of the for loop for the average circles
 				}
 			}
 			else if (err <= 9) //this averages the circles in the value if they are within 9% difference to eachother
 			{
 				circleRadi[l] = ((circleRadi[l] + r) / 2);
-				l = circleRadi.size();
+				l = (int) circleRadi.size();
 			}
 		}
 	}
@@ -170,7 +196,7 @@ Mat drawCircles(Mat dst) //this draws the circles that I averaged on the origina
 {
 	for (int i = 0; i < circleCenters.size(); i++) //for all the averaged circles
 	{
-		circle(dst, circleCenters[i], circleRadi[i], Scalar(255,0,0)); //draw the circles, with their own centerpoints too
+		circle(dst, circleCenters[i], (int) round(circleRadi[i]), Scalar(255, 0, 0)); //draw the circles, with their own centerpoints too
 	}
 	return dst; //return the file that I started working with
 }
@@ -189,7 +215,7 @@ void scoreTarget() //this function uses the logic I developed earlier to determi
 		}
 		else //finds the difference between the two circleRadi
 		{
-			diffRadi[i] = circleRadi[i + 1] - circleRadi[i]; //assigns value of difference
+			diffRadi[i] = (int) round(circleRadi[i + 1] - circleRadi[i]); //assigns value of difference
 			diffRadi.push_back(1); //expands vector
 			diffRadi[i + 1] = -1; //assigns known quantity
 		}
@@ -203,14 +229,19 @@ void scoreTarget() //this function uses the logic I developed earlier to determi
 		}
 		else //finds %err between the two values
 		{
-			double err = 100 * abs(diffRadi[i] - diffRadi[i + 1]);
+			double err = 100 * (abs(diffRadi[i] - diffRadi[i + 1]))/(abs(diffRadi[i]+diffRadi[i+1])/2);
 			if (err > 50) //if they are way different, then there is something wrong with that circle
 			{
 				if (i != diffRadi.size() - 1)
 				{
-					
-					acount = count;
-
+					if (err > 90)
+					{
+						acount = count + 1;
+					}
+					else
+					{
+						acount = count;
+					}
 				}
 				count++;
 			}
@@ -224,20 +255,20 @@ void scoreTarget() //this function uses the logic I developed earlier to determi
 	{
 		if (abs(circleRadi[diffRadi.size() - 1]) < abs(1.1*diffRadi[diffRadi.size() - 1])) //if the circles that are not endpoint circles are okay, then we need to test the endpoints, to do this we take the average distance between the circles, and see if it can fit within the diameter of the smallest circle. If it does not, then that is the smallest possible circle we can assume is there, and the outer circle must be the one that is missing
 		{
-			acount = 1; //triggers if smallest circle is 
-			cout << "Anomaly detected at: " << acount;
+			acount = 1; //triggers if smallest circle is there
+			cout << "Score: " << acount;
 		}
 		else
 		{
 			acount = 10;
-			cout << "anomaly detected at: " << acount;
+			cout << "Score: " << acount;
 		}
 	}
 	else
 	{
-		cout << "Anomaly detected between: " << acount << " and " << acount + 1 << endl;
+		cout << "Score: " << acount + 1 << endl;
 	}
 	Size size(800, 800);
 	resize(drawing2, drawing2, size);
-	imshow("image5", drawing2);
+	//imshow("Detected Circles", drawing2);
 }
