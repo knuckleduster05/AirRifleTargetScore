@@ -3,7 +3,7 @@ AirRifleTargetScore
 
 Author: Jack Manning
 To use:
-1. Open the command prompt and navigate to the directory containing the binary, CompSciIndependantProjectJackManning\x64\Release
+1. Open the command prompt and navigate to the directory containing the binary, AirRifleTargetScore-master\
 2. Type the name of the exe, CompSciIndependantProjectJackManning.exe with no paramaters to find the usage for the file.
 3. Type the name of the exe with a pointer to a picture as its argument to score the picture as a target
 
